@@ -1,8 +1,8 @@
 import torch
 import numpy as np
 import os
-from utils import datasets as utils_data
-from utils import plot_dict_batch as utils_plot_batch
+from nvs_utils import datasets as utils_data
+from nvs_utils import plot_dict_batch as utils_plot_batch
 
 import sys
 sys.path.insert(0,'./ignite')
@@ -215,7 +215,7 @@ def transfer_partial_weights(state_dict_other, obj, submodule=0, prefix=None, ad
                 own_state[name] = param.copy()
                 copyCount += 1
             else:
-                print('training.utils: Warning, unhandled element type for name={}, name_raw={}'.format(name,name_raw))
+                print('training.nvs_utils: Warning, unhandled element type for name={}, name_raw={}'.format(name,name_raw))
                 print(type(own_state[name]))
                 skipCount += 1
                 IPython.embed()

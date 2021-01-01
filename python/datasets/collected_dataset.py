@@ -18,7 +18,7 @@ import IPython
 
 import numpy.linalg as la
 
-from utils import datasets as utils_data
+from nvs_utils import datasets as utils_data
 from tqdm import tqdm
 import pickle
 

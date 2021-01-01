@@ -1,4 +1,4 @@
-from utils import skeleton
+from nvs_utils import skeleton
 
 # problem class parameters
 numJoints = 17

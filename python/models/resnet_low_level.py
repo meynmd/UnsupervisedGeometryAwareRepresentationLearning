@@ -4,7 +4,7 @@ import torch.utils.model_zoo as model_zoo
 import torch
 import IPython
 
-from utils import training as utils_train
+from nvs_utils import training as utils_train
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
            'resnet152']

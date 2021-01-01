@@ -7,8 +7,8 @@ import numpy as np
 
 import torchvision
 
-from utils import plotting as utils_plt
-from utils import skeleton as util_skel
+from nvs_utils import plotting as utils_plt
+from nvs_utils import skeleton as util_skel
 import torch
 
 def normalize_mean_std_tensor(pose_tensor, label_dict):

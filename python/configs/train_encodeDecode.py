@@ -11,10 +11,10 @@ import numpy as np
 #import pickle
 import IPython
 
-from utils import io as utils_io
-from utils import datasets as utils_data
-from utils import training as utils_train
-from utils import plot_dict_batch as utils_plot_batch
+from nvs_utils import io as nvs_utils_io
+from nvs_utils import datasets as nvs_utils_data
+from nvs_utils import training as utils_train
+from nvs_utils import plot_dict_batch as utils_plot_batch
 
 from models import unet_encode3D
 from losses import generic as losses_generic

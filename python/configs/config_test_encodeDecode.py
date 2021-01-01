@@ -1,4 +1,4 @@
-from utils import io as utils_io
+from nvs_utils import io as utils_io
 import os
 
 config_dict = utils_io.loadModule("./configs/config_train_encodeDecode_pose.py").config_dict
