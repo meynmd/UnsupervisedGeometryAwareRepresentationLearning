@@ -113,6 +113,7 @@ class unet(nn.Module):
         self.filters = [int(x / self.feature_scale) for x in self.filters]
         self.bottleneck_resolution = in_resolution//(2**(num_encoding_layers-1))
         num_output_features = self.bottleneck_resolution**2 * self.filters[num_encoding_layers-1]
+        self.num_output_features = num_output_features
         print('bottleneck_resolution',self.bottleneck_resolution,'num_output_features',num_output_features)
 
         ####################################
@@ -385,3 +386,107 @@ class unet(nn.Module):
             output_dict[key] = output_dict_all[key]
 
         return output_dict
+
+    def encode_3d(self, input_dict):
+        input = input_dict['img_crop']
+        device = input.device
+        batch_size = input.size()[0]
+        num_appearance_examples = batch_size // 2
+
+        ########################################################
+        # Determine shuffling
+        def shuffle_segment(list, start, end):
+            selected = list[start:end]
+            if self.training:
+                if 0 and end - start == 2:  # Note, was not enabled in ECCV submission, diabled now too HACK
+                    prob = np.random.random([1])
+                    # assuming four cameras, make it more often that one of the others is taken, rather than just
+                    # autoencoding (no flip, which would happen 50% otherwise)
+                    if prob[0] > 1 / self.num_cameras:
+                        selected = selected[::-1]  # reverse
+                    else:
+                        pass  # let it as it is
+                else:
+                    random.shuffle(selected)
+
+            else:  # deterministic shuffling for testing
+                selected = np.roll(selected, 1).tolist()
+            list[start:end] = selected
+
+        def flip_segment(list, start, width):
+            selected = list[start:start + width]
+            list[start:start + width] = list[start + width:start + 2 * width]
+            list[start + width:start + 2 * width] = selected
+
+        shuffled_appearance = list(range(batch_size))
+        shuffled_pose = list(range(batch_size))
+        num_pose_subbatches = batch_size // np.maximum(self.subbatch_size, 1)
+
+        rotation_by_user = self.training == False and 'external_rotation_cam' in input_dict.keys()
+
+        if not rotation_by_user:
+            if self.shuffle_fg and self.training == True:
+                for i in range(0, num_pose_subbatches):
+                    shuffle_segment(shuffled_appearance, i * self.subbatch_size, (i + 1) * self.subbatch_size)
+                for i in range(0, num_pose_subbatches // 2):  # flip first with second subbatch
+                    flip_segment(shuffled_appearance, i * 2 * self.subbatch_size, self.subbatch_size)
+            if self.shuffle_3d:
+                for i in range(0, num_pose_subbatches):
+                    shuffle_segment(shuffled_pose, i * self.subbatch_size, (i + 1) * self.subbatch_size)
+
+        # infer inverse mapping
+        shuffled_pose_inv = [-1] * batch_size
+        for i, v in enumerate(shuffled_pose):
+            shuffled_pose_inv[v] = i
+
+        #        print('self.training',self.training,"shuffled_appearance",shuffled_appearance)
+        #        print("shuffled_pose      ",shuffled_pose)
+
+        shuffled_appearance = torch.LongTensor(shuffled_appearance).to(device)
+        shuffled_pose = torch.LongTensor(shuffled_pose).to(device)
+        shuffled_pose_inv = torch.LongTensor(shuffled_pose_inv).to(device)
+
+        if rotation_by_user:
+            if 'shuffled_appearance' in input_dict.keys():
+                shuffled_appearance = input_dict['shuffled_appearance'].long()
+
+        ###############################################
+        # determine shuffled rotation
+        cam_2_world = input_dict['extrinsic_rot_inv'].view((batch_size, 3, 3)).float()
+        world_2_cam = input_dict['extrinsic_rot'].view((batch_size, 3, 3)).float()
+        if rotation_by_user:
+            external_cam = input_dict['external_rotation_cam'].view(1, 3, 3).expand((batch_size, 3, 3))
+            external_glob = input_dict['external_rotation_global'].view(1, 3, 3).expand((batch_size, 3, 3))
+            cam2cam = torch.bmm(external_cam, torch.bmm(world_2_cam, torch.bmm(external_glob, cam_2_world)))
+        else:
+            world_2_cam_suffled = torch.index_select(world_2_cam, dim=0, index=shuffled_pose)
+            cam2cam = torch.bmm(world_2_cam_suffled, cam_2_world)
+
+        input_dict_cropped = input_dict  # fallback to using crops
+
+        ###############################################
+        # encoding stage
+        ns = 0
+        latent_fg = None
+        has_fg = hasattr(self, "to_fg")
+        if self.encoderType == "ResNet":
+            # IPython.embed()
+            output = self.encoder.forward(input_dict_cropped)['latent_3d']
+            if has_fg:
+                latent_fg = output[:, :self.dimension_fg]
+            latent_3d = output[:, self.dimension_fg:self.dimension_fg + self.dimension_3d].contiguous().view(
+                batch_size, -1, 3)
+        else:  # UNet encoder
+            out_enc_conv = input_dict_cropped['img_crop']
+            for li in range(1,
+                            self.num_encoding_layers):  # note, first layer(li==1) is already created, last layer(li==num_encoding_layers) is created externally
+                out_enc_conv = getattr(self, 'conv_' + str(li) + '_stage' + str(ns))(out_enc_conv)
+                out_enc_conv = getattr(self, 'pool_' + str(li) + '_stage' + str(ns))(out_enc_conv)
+            out_enc_conv = getattr(self, 'conv_' + str(self.num_encoding_layers) + '_stage' + str(ns))(out_enc_conv)
+            # fully-connected
+            center_flat = out_enc_conv.view(batch_size, -1)
+            if has_fg:
+                latent_fg = self.to_fg(center_flat)
+            latent_3d = self.to_3d(center_flat).view(batch_size, -1, 3)
+
+        return latent_3d, latent_fg
