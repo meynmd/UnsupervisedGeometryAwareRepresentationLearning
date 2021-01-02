@@ -407,7 +407,9 @@ class unet(nn.Module):
             # note, first layer(li==1) is already created, last layer
             # (li==num_encoding_layers) is created externally
             for li in range(1, self.num_encoding_layers):
-                out_enc_conv = getattr(self, 'conv_' + str(li) + '_stage' + str(ns))(out_enc_conv)
+                layer_conv_name = 'conv_' + str(li) + '_stage' + str(ns)
+                print(layer_conv_name)
+                out_enc_conv = getattr(self, layer_conv_name)(out_enc_conv)
                 out_enc_conv = getattr(self, 'pool_' + str(li) + '_stage' + str(ns))(out_enc_conv)
             out_enc_conv = getattr(self, 'conv_' + str(self.num_encoding_layers) + '_stage' + str(ns))(out_enc_conv)
             # fully-connected
