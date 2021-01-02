@@ -27,6 +27,23 @@ if torch.cuda.is_available():
 else:
     device = "cpu"
 
+
+def tensor_to_npimg(torch_array):
+    return np.swapaxes(np.swapaxes(torch_array.numpy(), 0, 2), 0, 1)
+
+
+def denormalize(np_array):
+    return np_array * np.array(config_dict['img_std']) + np.array(config_dict['img_mean'])
+
+
+# extract image
+def tensor_to_img(output_tensor):
+    output_img = tensor_to_npimg(output_tensor)
+    output_img = denormalize(output_img)
+    output_img = np.clip(output_img, 0, 1)
+    return output_img
+
+
 class IgniteTestNVS(train_encodeDecode.IgniteTrainNVS):
     def run(self, config_dict_file, config_dict):
         config_dict['n_hidden_to3Dpose'] = config_dict.get('n_hidden_to3Dpose', 2)
@@ -50,18 +67,18 @@ class IgniteTestNVS(train_encodeDecode.IgniteTrainNVS):
         model = self.load_network(config_dict)
         model = model.to(device)
 
-        def tensor_to_npimg(torch_array):
-            return np.swapaxes(np.swapaxes(torch_array.numpy(), 0, 2), 0, 1)
-
-        def denormalize(np_array):
-            return np_array * np.array(config_dict['img_std']) + np.array(config_dict['img_mean'])
-
-        # extract image
-        def tensor_to_img(output_tensor):
-            output_img = tensor_to_npimg(output_tensor)
-            output_img = denormalize(output_img)
-            output_img = np.clip(output_img, 0, 1)
-            return output_img
+        # def tensor_to_npimg(torch_array):
+        #     return np.swapaxes(np.swapaxes(torch_array.numpy(), 0, 2), 0, 1)
+        #
+        # def denormalize(np_array):
+        #     return np_array * np.array(config_dict['img_std']) + np.array(config_dict['img_mean'])
+        #
+        # # extract image
+        # def tensor_to_img(output_tensor):
+        #     output_img = tensor_to_npimg(output_tensor)
+        #     output_img = denormalize(output_img)
+        #     output_img = np.clip(output_img, 0, 1)
+        #     return output_img
 
         def rotationMatrixXZY(theta, phi, psi):
             Ax = np.matrix([[1, 0, 0],
@@ -84,6 +101,7 @@ class IgniteTestNVS(train_encodeDecode.IgniteTrainNVS):
             input_dict['external_rotation_global'] = torch.from_numpy(np.eye(3)).float().to(device)
         nextImage()
 
+        import pdb; pdb.set_trace()
 
         # apply model on images
         output_dict = None
