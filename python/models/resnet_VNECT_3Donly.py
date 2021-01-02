@@ -160,9 +160,8 @@ class ResNetTwoStream(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, x_dict):
-        x = x_dict[self.input_key]
-        
+    def forward(self, x):
+
         x = self.conv1(x) # size /2
         x = self.bn1(x)
         x = self.relu(x) 
