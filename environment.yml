@@ -1,0 +1,12 @@
+name: nvs
+channels:
+  - defaults
+dependencies:
+  - pytorch
+  - numpy
+  - imageio
+  - matplotlib
+  - ignite
+  - ipython
+  - pytorch-metric-learning
+prefix: /home/matthew/anaconda3/envs/pt04
