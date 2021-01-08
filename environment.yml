@@ -1,0 +1,17 @@
+name: novel-view
+channels:
+  - defaults
+  - pytorch
+  - metric-learning
+dependencies:
+  - pytorch==1.6.0
+  - matplotlib
+  - ipython
+  - imageio
+  - numpy
+  - scipy
+  - torchvision
+  - h5py
+  - tqdm
+  - pytorch-metric-learning>=0.9.90
+prefix: /proj/llfr/staff/mmeyn/briar/nvs/env4
