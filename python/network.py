@@ -14,14 +14,14 @@ from nvs_utils import io as utils_io
 from nvs_utils import datasets as utils_data
 from nvs_utils import plotting as utils_plt
 from nvs_utils import skeleton as utils_skel
+import nvs_utils.training as utils_train
 
 import models.unet_encode3D as unet_encode3D
-
-import train_encodeDecode
 
 
 def load_network(config_dict):
     output_types = config_dict['output_types']
+    device = 'cuda:0'
 
     use_billinear_upsampling = config_dict.get('upsampling_bilinear', False)
     lower_billinear = 'upsampling_bilinear' in config_dict.keys() and config_dict['upsampling_bilinear'] == 'half'
