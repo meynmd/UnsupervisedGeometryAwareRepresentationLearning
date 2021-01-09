@@ -1,12 +1,17 @@
-name: nvs
+name: novel-view
 channels:
   - defaults
-dependencies:
   - pytorch
-  - numpy
-  - imageio
+  - metric-learning
+dependencies:
+  - pytorch==1.6.0
   - matplotlib
-  - ignite
   - ipython
-  - pytorch-metric-learning
-prefix: /home/matthew/anaconda3/envs/pt04
+  - imageio
+  - numpy
+  - scipy
+  - torchvision
+  - h5py
+  - tqdm
+  - pytorch-metric-learning>=0.9.90
+prefix: /proj/llfr/staff/mmeyn/briar/nvs/env4
