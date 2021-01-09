@@ -4,7 +4,9 @@ from glob import glob
 
 import numpy as np
 import imageio
+
 import torch
+import torch.nn.functional as F
 from torch.utils.data import Dataset
 import torchvision
 
@@ -23,6 +25,24 @@ class Image256toTensor(object):
         return self.__class__.__name__ + '()'
 
 
+class SquarePad(object):
+    def __call__(self, image_tensor):
+        h, w = img_size = image_tensor.shape[1:]
+        larger_dim = np.argmax(img_size)
+        larger_size = img_size[larger_dim]
+        pad_l, pad_r = (larger_size - w)//2, np.ceil((larger_size - w)/2)
+        pad_t, pad_b = (larger_size - h)//2, np.ceil((larger_size - h)/2)
+        pad_amt = (pad_l, pad_r, pad_t, pad_b)
+        if larger_dim == 1:
+            tb = torch.cat((image_tensor[:, 0, :], image_tensor[:, -1, :]), dim=1)
+            pad_val = torch.mean(tb, dim=1)
+        else:
+            lr = torch.cat((image_tensor[:, :, 0], image_tensor[:, :, -1]), dim=1)
+            pad_val = torch.mean(lr, dim=1)
+
+        return F.pad(image_tensor, pad_amt, mode='constant', value=pad_val)
+
+
 class PRCCDataset(Dataset):
     def __init__(self, prcc_root, split, mean=(0.485, 0.456, 0.406),
                  stdDev= (0.229, 0.224, 0.225)):
@@ -38,7 +58,9 @@ class PRCCDataset(Dataset):
         self.std_dev = stdDev
         self.transform_in = torchvision.transforms.Compose([
             Image256toTensor(),
-            torchvision.transforms.Normalize(self.mean, self.std_dev)
+            torchvision.transforms.Normalize(self.mean, self.std_dev),
+            SquarePad(),
+            torchvision.transforms.Resize((128, 128))
         ])
 
     def enumerate_data(self):
