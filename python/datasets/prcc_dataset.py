@@ -35,10 +35,10 @@ class SquarePad(object):
         pad_amt = (pad_l, pad_r, pad_t, pad_b)
         if larger_dim == 1:
             tb = torch.cat((image_tensor[:, 0, :], image_tensor[:, -1, :]), dim=1)
-            pad_val = torch.mean(tb, dim=1)
+            pad_val = torch.mean(tb).value()
         else:
             lr = torch.cat((image_tensor[:, :, 0], image_tensor[:, :, -1]), dim=1)
-            pad_val = torch.mean(lr, dim=1)
+            pad_val = torch.mean(lr).value()
 
         return F.pad(image_tensor, pad_amt, mode='constant', value=pad_val)
 

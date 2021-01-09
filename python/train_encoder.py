@@ -63,8 +63,9 @@ def test(model, train_set, test_set, accuracy_calculator):
           "{}".format(accuracies["precision_at_1"]))
 
 
-def main(encoder_type='UNet', max_epochs=10, device=torch.device("cuda:0")):
-    dataloaders = get_dataloaders()
+def main(encoder_type='UNet', max_epochs=10, device=torch.device("cuda:0"),
+         data_path='/proj/llfr/staff/mmeyn/briar/data/prcc'):
+    dataloaders = get_dataloaders(data_path)
     model = get_model(encoder_type)
     distance = distances.CosineSimilarity()
     reducer = reducers.ThresholdReducer(low=0)
