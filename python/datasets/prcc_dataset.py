@@ -39,23 +39,6 @@ class Image256toTensor(object):
         return self.__class__.__name__ + '()'
 
 
-#class SquarePad(object):
-#    def __call__(self, image_tensor):
-#        h, w = img_size = image_tensor.shape[1:]
-#        larger_dim = np.argmax(img_size)
-#        larger_size = img_size[larger_dim]
-#        pad_l, pad_r = (larger_size - w)//2, int(np.ceil((larger_size - w)/2))
-#        pad_t, pad_b = (larger_size - h)//2, int(np.ceil((larger_size - h)/2))
-#        pad_amt = (pad_l, pad_r, pad_t, pad_b)
-#        if larger_dim == 1:
-#            tb = torch.cat((image_tensor[:, 0, :], image_tensor[:, -1, :]), dim=1)
-#            pad_val = torch.mean(tb).item()
-#        else:
-#            lr = torch.cat((image_tensor[:, :, 0], image_tensor[:, :, -1]), dim=1)
-#            pad_val = torch.mean(lr).item()
-#
-#        return F.pad(image_tensor, pad_amt, mode='constant', value=pad_val)
-
 class SquarePad(object):
     def __call__(self, image):
         w, h = image.size
@@ -67,24 +50,19 @@ class SquarePad(object):
 
 class PRCCDataset(Dataset):
     def __init__(self, prcc_root, split, mean=(0.485, 0.456, 0.406),
-                 stdDev= (0.229, 0.224, 0.225)):
+                 stdDev=(0.229, 0.224, 0.225), camera=None):
 
         assert split in SPLITS
         self.split = split
         self.data_dir = os.path.join(prcc_root, 'rgb', split)
-        self.img_dirs = glob(os.path.join(self.data_dir, '*'))
+        # self.img_dirs = glob(os.path.join(self.data_dir, '*'))
         self.subj_ids = SUBJ_IDS
         self.subj_index = {sid: idx for idx, sid in enumerate(self.subj_ids)}
-        self.data = self.enumerate_data()
+        assert (camera is None) == (split != 'test'), 'camera must be specified only for test set'
+        self.data = self.enumerate_data(camera=camera)
         self.n_images = len(self.data)
         self.mean = mean
         self.std_dev = stdDev
-        #self.transform_in = torchvision.transforms.Compose([
-        #    Image256toTensor(),
-        #    torchvision.transforms.Normalize(self.mean, self.std_dev),
-        #    SquarePad(),
-        #    torchvision.transforms.Resize((128, 128))
-        #])
         self.transform_in = torchvision.transforms.Compose([
             SquarePad(),
             torchvision.transforms.Resize((128, 128)),
@@ -92,13 +70,20 @@ class PRCCDataset(Dataset):
             torchvision.transforms.Normalize(self.mean, self.std_dev)
         ])
 
-    def enumerate_data(self):
-        data = []
-        for subj_id in self.subj_ids:
-            images = glob(os.path.join(self.data_dir, str(subj_id), '*.jpg'))
-            data += [(img, self.subj_index[subj_id]) for img in images]
-        random.shuffle(data)
-        return data
+    def enumerate_data(self, camera=None):
+
+        def find_data(root_dir):
+            data = []
+            for subj_id in self.subj_ids:
+                images = glob(os.path.join(root_dir, str(subj_id), '*.jpg'))
+                data += [(img, self.subj_index[subj_id]) for img in images]
+            random.shuffle(data)
+            return data
+
+        if self.split == 'test':
+            return find_data(os.path.join(self.data_dir, camera))
+        else:
+            return find_data(self.data_dir)
 
     def __len__(self):
         return self.n_images
