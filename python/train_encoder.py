@@ -95,7 +95,20 @@ def main(encoder_type='UNet', max_epochs=50, device=torch.device("cuda:0"),
                                             type_of_triplets="semihard")
     accuracy_calculator = AccuracyCalculator(include=("precision_at_1",),
                                              k=1)
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+    # optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+    base_params = []
+    classifier_params = []
+    for name, param in model.named_parameters():
+        module = name.split(".")[0]
+        if module == "encoding_projection":
+            classifier_params.append(param)
+        else:
+            base_params.append(param)
+
+    optimizer = optim.Adam([{"params": base_params},
+                            {"params": classifier_params, 'lr': 1e-2}], lr=1e-4)
 
     for epoch in range(1, max_epochs + 1):
         train_epoch(model, dataloaders['train'], loss_func, optimizer,
@@ -105,7 +118,7 @@ def main(encoder_type='UNet', max_epochs=50, device=torch.device("cuda:0"),
                    accuracy_calculator)
 
         if epoch % 5 == 0:
-            checkpoint_name = 'epoch_{}_prec1_{:.4f}.pth'.format(epoch, acc["precision_at_1"])
+            checkpoint_name = 'epoch_{:02d}_prec1_{:.4f}.pth'.format(epoch, acc["precision_at_1"])
             checkpoint_path = os.path.join(save_dir, checkpoint_name)
             torch.save(model.state_dict(), checkpoint_path)
 
