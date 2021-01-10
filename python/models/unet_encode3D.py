@@ -219,6 +219,13 @@ class unet(nn.Module):
         self.relu2 = ReLU(inplace=False)
         self.dropout = Dropout(inplace=True, p=0.3)
 
+        self.encoding_projection = nn.Sequential(Linear(self.dimension_3d + self.dimension_fg, 256),
+                                                 Dropout(inplace=True, p=self.latent_dropout),
+                                                 ReLU(inplace=False),
+                                                 Linear(256, 64),
+                                                 Dropout(inplace=True, p=0.2))
+
+    """
     def forward(self, input_dict):
         input = input_dict['img_crop']
         device = input.device
@@ -386,6 +393,9 @@ class unet(nn.Module):
             output_dict[key] = output_dict_all[key]
 
         return output_dict
+    """
+    def forward(self, x):
+        return self.encode_3d(x)
 
     def encode_3d(self, image):
         input = image
@@ -420,4 +430,6 @@ class unet(nn.Module):
         flat_3d = torch.reshape(latent_3d, (batch_size, -1))
         flat_fg = torch.reshape(latent_fg, (batch_size, -1))
 
-        return torch.cat((flat_3d, flat_fg), 1)
+        encoded_features = torch.cat((flat_3d, flat_fg), 1)
+
+        return self.encoding_projection(encoded_features)

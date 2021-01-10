@@ -18,13 +18,15 @@ def get_dataloaders(data_path, batch_size=32, num_workers=8,
                     std_dev= (0.229, 0.224, 0.225)):
 
     dataloaders = {}
+    datasets = {}
     for split in ('train', 'val'):
         dataset = PRCCDataset(data_path, split, mean, std_dev)
+        datasets[split] = dataset
         dataloaders[split] = DataLoader(dataset, batch_size,
                                         shuffle=(split == 'train'),
                                         num_workers=num_workers)
 
-    return dataloaders
+    return datasets, dataloaders
 
 
 def train_epoch(model, train_loader, loss_func, optimizer,
@@ -34,7 +36,7 @@ def train_epoch(model, train_loader, loss_func, optimizer,
     for batch_idx, (data, labels) in enumerate(train_loader):
         data, labels = data.to(device), labels.to(device)
         optimizer.zero_grad()
-        embeddings = model(data)
+        embeddings = model.encode_3d(data)
         indices_tuple = mining_func(embeddings, labels)
         loss = loss_func(embeddings, labels, indices_tuple)
         loss.backward()
@@ -63,9 +65,9 @@ def test(model, train_set, test_set, accuracy_calculator):
           "{}".format(accuracies["precision_at_1"]))
 
 
-def main(encoder_type='UNet', max_epochs=10, device=torch.device("cuda:0"),
+def main(encoder_type='UNet', max_epochs=50, device=torch.device("cuda:0"),
          data_path='/proj/llfr/staff/mmeyn/briar/data/prcc'):
-    dataloaders = get_dataloaders(data_path)
+    datasets, dataloaders = get_dataloaders(data_path)
     model = get_model(encoder_type)
     distance = distances.CosineSimilarity()
     reducer = reducers.ThresholdReducer(low=0)
@@ -75,11 +77,13 @@ def main(encoder_type='UNet', max_epochs=10, device=torch.device("cuda:0"),
                                             type_of_triplets="semihard")
     accuracy_calculator = AccuracyCalculator(include=("precision_at_1",),
                                              k=1)
-    optimizer = optim.Adam(model.parameters(), lr=0.01)
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     for epoch in range(1, max_epochs + 1):
         train_epoch(model, dataloaders['train'], loss_func, optimizer,
                     device, mining_func, epoch)
 
-        test(model, dataloaders['train'], dataloaders['val'],
+        test(model, datasets['train'], datasets['val'],
              accuracy_calculator)
+
+main()
