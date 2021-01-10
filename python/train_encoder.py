@@ -71,12 +71,15 @@ def test(model, train_set, test_set, accuracy_calculator):
     return accuracies
 
 
-def main(encoder_type='UNet', max_epochs=50, device=torch.device("cuda:0"),
+def main(max_epochs=50, device=torch.device("cuda:0"),
          batch_size=128, data_path='/proj/llfr/staff/mmeyn/briar/data/prcc'):
     
     ap = argparse.ArgumentParser()
+    ap.add_argument('--encoder', '-e', default='UNet')
     ap.add_argument('--save', '-s')
     args = ap.parse_args()
+
+    encoder_type = args.encoder
 
     if args.save is None:
         save_dir = os.path.join(os.path.abspath('.'), 'checkpoints')

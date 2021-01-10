@@ -102,6 +102,7 @@ def main(encoder_type='UNet', device=torch.device("cuda:0"), batch_size=128,
 
     model = build_network(encoder_type)
     model.load_state_dict(torch.load(args.checkpoint))
+    model.to(device)
     model.eval()
 
     datasets, dataloaders = get_dataloaders(data_path, batch_size=batch_size)
