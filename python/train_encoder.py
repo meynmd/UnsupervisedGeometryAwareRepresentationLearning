@@ -1,3 +1,6 @@
+import os
+import argparse
+
 import numpy as np
 
 import torch
@@ -63,11 +66,26 @@ def test(model, train_set, test_set, accuracy_calculator):
                                                 False)
     print("Test set accuracy (Precision@1) = "
           "{}".format(accuracies["precision_at_1"]))
+    for k, v in accuracies.items():
+        print('\t{}: {}'.format(k, v))
+    return accuracies
 
 
 def main(encoder_type='UNet', max_epochs=50, device=torch.device("cuda:0"),
-         data_path='/proj/llfr/staff/mmeyn/briar/data/prcc'):
-    datasets, dataloaders = get_dataloaders(data_path)
+         batch_size=128, data_path='/proj/llfr/staff/mmeyn/briar/data/prcc'):
+    
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--save', '-s')
+    args = ap.parse_args()
+
+    if args.save is None:
+        save_dir = os.path.join(os.path.abspath('.'), 'checkpoints')
+    else:
+        save_dir = args.save
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    datasets, dataloaders = get_dataloaders(data_path, batch_size=batch_size)
     model = get_model(encoder_type)
     distance = distances.CosineSimilarity()
     reducer = reducers.ThresholdReducer(low=0)
@@ -83,7 +101,14 @@ def main(encoder_type='UNet', max_epochs=50, device=torch.device("cuda:0"),
         train_epoch(model, dataloaders['train'], loss_func, optimizer,
                     device, mining_func, epoch)
 
-        test(model, datasets['train'], datasets['val'],
-             accuracy_calculator)
+        acc = test(model, datasets['train'], datasets['val'],
+                   accuracy_calculator)
 
-main()
+        if epoch % 5 == 0:
+            checkpoint_name = 'epoch_{}_prec1_{:.4f}.pth'.format(epoch, acc["precision_at_1"])
+            checkpoint_path = os.path.join(save_dir, checkpoint_name)
+            torch.save(model.state_dict(), checkpoint_path)
+
+
+if __name__ == "__main__":
+    main()
