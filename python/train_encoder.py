@@ -56,22 +56,23 @@ def get_all_embeddings(dataset, model):
 
 
 def test(model, train_set, test_set, accuracy_calculator):
+    print("computing train embeddings...")
     train_embeddings, train_labels = get_all_embeddings(train_set, model)
+    print("computing val embeddings...")
     test_embeddings, test_labels = get_all_embeddings(test_set, model)
-    print("Computing accuracy")
+    print("computing accuracy...")
     accuracies = accuracy_calculator.get_accuracy(test_embeddings,
                                                 train_embeddings,
                                                 np.squeeze(test_labels),
                                                 np.squeeze(train_labels),
                                                 False)
-    print("Test set accuracy (Precision@1) = "
+    print("val set precision@1 = "
           "{}".format(accuracies["precision_at_1"]))
-    for k, v in accuracies.items():
-        print('\t{}: {}'.format(k, v))
+
     return accuracies
 
 
-def main(max_epochs=50, device=torch.device("cuda:0"),
+def main(max_epochs=100, device=torch.device("cuda:0"),
          batch_size=128, data_path='/proj/llfr/staff/mmeyn/briar/data/prcc'):
     
     ap = argparse.ArgumentParser()
@@ -99,8 +100,6 @@ def main(max_epochs=50, device=torch.device("cuda:0"),
     accuracy_calculator = AccuracyCalculator(include=("precision_at_1",),
                                              k=1)
 
-    # optimizer = optim.Adam(model.parameters(), lr=0.001)
-
     base_params = []
     classifier_params = []
     for name, param in model.named_parameters():
@@ -121,7 +120,7 @@ def main(max_epochs=50, device=torch.device("cuda:0"),
                    accuracy_calculator)
 
         if epoch % 5 == 0:
-            checkpoint_name = 'epoch_{:02d}_prec1_{:.4f}.pth'.format(epoch, acc["precision_at_1"])
+            checkpoint_name = 'epoch_{:03d}_prec1_{:.4f}.pth'.format(epoch, acc["precision_at_1"])
             checkpoint_path = os.path.join(save_dir, checkpoint_name)
             torch.save(model.state_dict(), checkpoint_path)
 

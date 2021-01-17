@@ -98,8 +98,10 @@ def main(encoder_type='UNet', device=torch.device("cuda:0"), batch_size=128,
 
     ap = argparse.ArgumentParser()
     ap.add_argument('checkpoint')
+    ap.add_argument('--encoder', '-e', default='UNet')
     args = ap.parse_args()
 
+    encoder_type = args.encoder
     model = build_network(encoder_type)
     model.load_state_dict(torch.load(args.checkpoint))
     model.to(device)
