@@ -9,6 +9,8 @@ from torch.utils.data import DataLoader
 from pytorch_metric_learning import losses, miners, distances, reducers, testers
 from pytorch_metric_learning.utils.accuracy_calculator import AccuracyCalculator, precision_at_k
 
+from catalyst.metrics.cmc_score import cmc_score
+
 from datasets.prcc_dataset import PRCCDataset
 # from build import get_model
 from nvs_utils import io as utils_io
@@ -85,25 +87,62 @@ def get_dataloaders(data_path, batch_size=32, num_workers=8,
     return datasets, dataloaders
 
 
+"""
 def get_all_embeddings(dataset, model):
     tester = testers.BaseTester()
     return tester.get_all_embeddings(dataset, model)
+"""
 
 
-def test(model, datasets, accuracy_calculator, k=1):
+def compute_embeddings(model, dl, device=torch.device("cuda:0")):
+    labels, embeddings = [], []
+    for x, y in dl:
+        labels.append(y)
+        with torch.no_grad():
+            emb = model(x.to(device))
+        embeddings.append(emb)
+
+    labels = torch.cat(labels, dim=0)
+    embeddings = torch.cat(embeddings, dim=0)
+
+    return embeddings, labels
+
+
+def make_templates(embeddings, labels):
+    unique_labels = torch.unique(labels, sorted=True)
+    emb_groups = [embeddings[labels == l] for l in unique_labels]
+    templates = [torch.mean(embs, dim=0) for embs in emb_groups]
+
+    return torch.stack(templates, dim=0), unique_labels
+
+
+def get_label_matrix(labels_1, labels_2):
+    n_1, n_2 = labels_1.shape[0], labels_2.shape[0]
+    mat = torch.zeros(n_1, n_2)
+    for i in range(n_1):
+        l_i = labels_1[i].item()
+        mat[i] = (labels_2 == l_i).type(torch.int)
+
+    return mat
+
+
+def test(model, dataloaders, k=1):
     print('computing query embeddings...')
-    query_embeddings, query_labels = get_all_embeddings(datasets['C'], model)
+    query_embeddings, query_labels = compute_embeddings(model, dataloaders['C'], 
+                                                        device=torch.device("cuda:0"))
     print('computing gallery embeddings...')
-    ref_embeddings, ref_labels = get_all_embeddings(datasets['A'], model)
-    
-    print("Computing accuracy...")
+    ref_embeddings, ref_labels = compute_embeddings(model, dataloaders['A'], 
+                                                    device=torch.device("cuda:0"))
 
-    accuracies = accuracy_calculator.get_accuracy(query_embeddings,
-                                                  ref_embeddings,
-                                                  np.squeeze(query_labels),
-                                                  np.squeeze(ref_labels),
-                                                  False)
-    return accuracies
+    ref_embeddings, ref_labels = make_templates(ref_embeddings, ref_labels)
+
+    label_mat = get_label_matrix(query_labels, ref_labels)
+
+    print("Computing accuracy...")
+    # import pdb; pdb.set_trace()
+    cmc = cmc_score(query_embeddings, ref_embeddings, label_mat, k)
+
+    return cmc
 
 
 def main(encoder_type='UNet', device=torch.device("cuda:0"), batch_size=128,
@@ -122,14 +161,10 @@ def main(encoder_type='UNet', device=torch.device("cuda:0"), batch_size=128,
 
     datasets, dataloaders = get_dataloaders(data_path, batch_size=batch_size)
 
-    # accuracy_calculator = AccuracyCalculator(k=1)
-    accuracy_calculator = MyAccuracyCalculator(k=5)
-    accuracies = test(model, datasets, accuracy_calculator)
+    cmc = test(model, dataloaders)
+    # import pdb; pdb.set_trace()
+    print("Test set cmc score: {}".format(cmc))
 
-    print("Test set accuracy (Precision@1) = "
-          "{}".format(accuracies["precision_at_1"]))
-    for k, v in accuracies.items():
-        print('\t{}: {}'.format(k, v))
 
 
 if __name__ == "__main__":

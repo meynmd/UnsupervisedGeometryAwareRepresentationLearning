@@ -75,7 +75,7 @@ class PRCCDataset(Dataset):
         def find_data(root_dir):
             data = []
             for subj_id in self.subj_ids:
-                images = glob(os.path.join(root_dir, str(subj_id), '*.jpg'))
+                images = glob(os.path.join(root_dir, '{:03d}'.format(subj_id), '*.jpg'))
                 data += [(img, self.subj_index[subj_id]) for img in images]
             random.shuffle(data)
             return data
