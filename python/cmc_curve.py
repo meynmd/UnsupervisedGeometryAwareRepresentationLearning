@@ -1,4 +1,5 @@
 import os
+import sys
 import argparse
 
 import numpy as np
@@ -17,6 +18,7 @@ from nvs_utils import io as utils_io
 import models.unet_encode3D as unet_encode3D
 
 
+"""
 class MyAccuracyCalculator(AccuracyCalculator):
     def calculate_precision_up_to(self, knn_labels, query_labels, **kwargs):
         import pdb; pdb.set_trace()
@@ -24,7 +26,8 @@ class MyAccuracyCalculator(AccuracyCalculator):
     
     def requires_knn(self):
         return super().requires_knn() + ["precision_up_to"]
-        
+"""
+     
 
 def build_network(encoder_type):
     config_dict_module = utils_io.loadModule("configs/config_test_encodeDecode.py")
@@ -111,8 +114,9 @@ def compute_embeddings(model, dl, device=torch.device("cuda:0")):
 def make_templates(embeddings, labels):
     unique_labels = torch.unique(labels, sorted=True)
     emb_groups = [embeddings[labels == l] for l in unique_labels]
-    templates = [torch.mean(embs, dim=0) for embs in emb_groups]
 
+    templates = [torch.mean(embs, dim=0) for embs in emb_groups]
+    # templates = [embs[np.random.randint(0, embs.shape[0]), :] for embs in emb_groups]
     return torch.stack(templates, dim=0), unique_labels
 
 
@@ -126,6 +130,37 @@ def get_label_matrix(labels_1, labels_2):
     return mat
 
 
+"""
+def cmc_score(query_emb, ref_emb, ref_labels, label_mat, k=1):
+    # import pdb; pdb.set_trace()
+    
+    distances = torch.cdist(query_emb, ref_emb)
+
+    unique_labels = ref_labels.unique()
+    for lab in unique_labels:
+        labeled_idxs = torch.where(ref_labels == lab)[0]
+        mask = torch.zeros(distances.shape, dtype=torch.int, device=distances.device)
+        mask[:, labeled_idxs] = 1
+        mask_inv = np.inf*torch.ones(distances.shape, device=distances.device)
+        mask_inv[:, labeled_idxs] = 0
+        masked = mask*distances + mask_inv
+        closest = torch.argmin(masked, dim=1)
+        mask = torch.zeros(distances.shape, device=distances.device)
+        mask[:, labeled_idxs] = np.inf
+        mask[:, closest] = 0
+        distances += mask
+
+    import pdb; pdb.set_trace()
+    perm_matrix = torch.argsort(distances)
+    ranking_matrix = torch.argsort(perm_matrix)
+    label_mat = label_mat.type(torch.bool)
+    ranking_matrix[~label_mat] = k + 1
+    closest = ranking_matrix.min(dim=1)[0]
+    k_mask = (closest < k).type(torch.float)
+    return k_mask.mean().item()
+"""
+
+
 def test(model, dataloaders, k=1):
     print('computing query embeddings...')
     query_embeddings, query_labels = compute_embeddings(model, dataloaders['C'], 
@@ -134,40 +169,42 @@ def test(model, dataloaders, k=1):
     ref_embeddings, ref_labels = compute_embeddings(model, dataloaders['A'], 
                                                     device=torch.device("cuda:0"))
 
-    ref_embeddings, ref_labels = make_templates(ref_embeddings, ref_labels)
+    # ref_embeddings, ref_labels = make_templates(ref_embeddings, ref_labels)
 
     label_mat = get_label_matrix(query_labels, ref_labels)
 
     print("Computing accuracy...")
     # import pdb; pdb.set_trace()
-    cmc = cmc_score(query_embeddings, ref_embeddings, label_mat, k)
+    
+    cmc = [cmc_score(query_embeddings, ref_embeddings, label_mat, i) for i in range(1, 100, 5)]
 
     return cmc
 
 
-def main(encoder_type='UNet', device=torch.device("cuda:0"), batch_size=128,
-         data_path='/proj/llfr/staff/mmeyn/briar/data/prcc'):
+def main(checkpoint, encoder_type='UNet', device=torch.device("cuda:0"), 
+         batch_size=128, data_path='/proj/llfr/staff/mmeyn/briar/data/prcc'):
 
-    ap = argparse.ArgumentParser()
-    ap.add_argument('checkpoint')
-    ap.add_argument('--encoder', '-e', default='UNet')
-    args = ap.parse_args()
-
-    encoder_type = args.encoder
     model = build_network(encoder_type)
-    model.load_state_dict(torch.load(args.checkpoint))
+    model.load_state_dict(torch.load(checkpoint))
     model.to(device)
     model.eval()
 
     datasets, dataloaders = get_dataloaders(data_path, batch_size=batch_size)
 
     cmc = test(model, dataloaders)
-    # import pdb; pdb.set_trace()
-    print("Test set cmc score: {}".format(cmc))
 
+    # import pdb; pdb.set_trace()
+
+    print("Test set rank 1: {}".format(cmc[0]))
+
+    for i, score in zip(range(1, 100, 5), cmc):
+        print('{},{}'.format(i, score), file=sys.stderr)
 
 
 if __name__ == "__main__":
-    main()
+    ap = argparse.ArgumentParser()
+    ap.add_argument('checkpoint')
+    ap.add_argument('--encoder', '-e', default='UNet')
+    args = ap.parse_args()
 
-
+    main(args.checkpoint, args.encoder)
