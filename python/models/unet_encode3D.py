@@ -219,11 +219,25 @@ class unet(nn.Module):
         self.relu2 = ReLU(inplace=False)
         self.dropout = Dropout(inplace=True, p=0.3)
 
+        """
         self.encoding_projection = nn.Sequential(Linear(self.dimension_3d + self.dimension_fg, 256),
                                                  Dropout(inplace=True, p=self.latent_dropout),
                                                  ReLU(inplace=False),
                                                  Linear(256, 64),
                                                  Dropout(inplace=True, p=0.2))
+        """
+        self.encoding_projection = nn.Sequential(Linear(self.dimension_3d + self.dimension_fg, 128),
+                                                 Dropout(inplace=True, p=self.latent_dropout), 
+                                                 ReLU(inplace=False), 
+                                                 Linear(128, 32))
+        """
+        self.encoding_projection = nn.Sequential(Linear(self.dimension_3d + self.dimension_fg, 128),
+                                                 Dropout(inplace=True, p=self.latent_dropout),
+                                                 ReLU(inplace=False),
+                                                 Linear(128, 32))
+                                                 # Dropout(inplace=True, p=self.latent_dropout))
+        """
+
 
     """
     def forward(self, input_dict):

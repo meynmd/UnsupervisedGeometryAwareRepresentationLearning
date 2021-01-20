@@ -176,7 +176,7 @@ def test(model, dataloaders, k=1):
     print("Computing accuracy...")
     # import pdb; pdb.set_trace()
     
-    cmc = [cmc_score(query_embeddings, ref_embeddings, label_mat, i) for i in range(1, 100, 5)]
+    cmc = [cmc_score(query_embeddings, ref_embeddings, label_mat, i) for i in range(1, k + 1, 5)]
 
     return cmc
 
@@ -190,10 +190,10 @@ def main(checkpoint, encoder_type='UNet', device=torch.device("cuda:0"),
     model.eval()
 
     datasets, dataloaders = get_dataloaders(data_path, batch_size=batch_size)
+    
+    import pdb; pdb.set_trace()
 
     cmc = test(model, dataloaders)
-
-    # import pdb; pdb.set_trace()
 
     print("Test set rank 1: {}".format(cmc[0]))
 

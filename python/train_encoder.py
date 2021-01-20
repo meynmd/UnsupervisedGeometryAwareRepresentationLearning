@@ -14,7 +14,7 @@ from pytorch_metric_learning.utils.accuracy_calculator import AccuracyCalculator
 
 from datasets.prcc_dataset import PRCCDataset
 from build import get_model
-
+import cmc_curve as cmc
 
 def get_dataloaders(data_path, batch_size=32, num_workers=8,
                     mean=(0.485, 0.456, 0.406),
@@ -78,6 +78,7 @@ def main(max_epochs=100, device=torch.device("cuda:0"),
     ap = argparse.ArgumentParser()
     ap.add_argument('--encoder', '-e', default='UNet')
     ap.add_argument('--save', '-s')
+    ap.add_argument('--resume')
     args = ap.parse_args()
 
     encoder_type = args.encoder
@@ -91,12 +92,16 @@ def main(max_epochs=100, device=torch.device("cuda:0"),
 
     datasets, dataloaders = get_dataloaders(data_path, batch_size=batch_size)
     model = get_model(encoder_type)
+
+    if args.resume:
+        model.load_state_dict(torch.load(args.resume))
+
     distance = distances.CosineSimilarity()
     reducer = reducers.ThresholdReducer(low=0)
-    loss_func = losses.TripletMarginLoss(margin=0.2, distance=distance,
+    loss_func = losses.TripletMarginLoss(margin=0.1, distance=distance,
                                          reducer=reducer)
-    mining_func = miners.TripletMarginMiner(margin=0.2, distance=distance,
-                                            type_of_triplets="semihard")
+    mining_func = miners.TripletMarginMiner(margin=0.1, distance=distance,
+                                            type_of_triplets="all")
     accuracy_calculator = AccuracyCalculator(include=("precision_at_1",),
                                              k=1)
 
@@ -109,21 +114,41 @@ def main(max_epochs=100, device=torch.device("cuda:0"),
         else:
             base_params.append(param)
 
-    optimizer = optim.Adam([{"params": base_params},
-                            {"params": classifier_params, 'lr': 1e-2}], lr=1e-4)
+    optimizer = optim.SGD([{"params": base_params},
+                           {"params": classifier_params, 'lr': 1e-2}], 
+                          lr=1e-5, momentum=0.9)
+    
+    # dataloaders for testing
+    _, test_dl = cmc.get_dataloaders(data_path, batch_size=batch_size)
 
     for epoch in range(1, max_epochs + 1):
+        for i, pg in enumerate(optimizer.param_groups):
+            print('parameter group {:02d}, {} parameters, lr: {:.4f}'.format(i, len(pg['params']), pg['lr'])) 
         train_epoch(model, dataloaders['train'], loss_func, optimizer,
                     device, mining_func, epoch)
 
-        acc = test(model, datasets['train'], datasets['val'],
-                   accuracy_calculator)
+        lrs = [pg['lr'] for pg in optimizer.param_groups]
+        lr_max, lr_min = max(lrs), min(lrs)
+        for i, pg in enumerate(optimizer.param_groups): 
+            d_lr = lr_max - pg['lr']
+            if d_lr > 0:
+                pg['lr'] += 0.02 * d_lr
+            pg['lr'] *= 0.98
+
+        # acc = test(model, datasets['train'], datasets['val'],
+        #            accuracy_calculator)
+        print('evaluating...')
+        cmc_score = cmc.test(model, test_dl, k=1)
+        print('rank 1: {:.4f}'.format(cmc_score[0]))
 
         if epoch % 5 == 0:
-            checkpoint_name = 'epoch_{:03d}_prec1_{:.4f}.pth'.format(epoch, acc["precision_at_1"])
+            # checkpoint_name = 'epoch_{:03d}_prec1_{:.4f}.pth'.format(epoch, acc["precision_at_1"])
+            checkpoint_name = 'epoch_{:03d}_prec1_{:.4f}.pth'.format(epoch, cmc_score[0])
             checkpoint_path = os.path.join(save_dir, checkpoint_name)
             torch.save(model.state_dict(), checkpoint_path)
 
 
 if __name__ == "__main__":
+    torch.manual_seed(0)
+    np.random.seed(0)
     main()
