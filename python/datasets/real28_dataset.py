@@ -56,7 +56,7 @@ class Real28Dataset(Dataset):
         def find_data(img_dir):
             data = []
             subj_ids = set()
-            for img_path in glob(os.path.join(img_dir, '*.jpg')):
+            for img_path in glob(os.path.join(img_dir, '*.jpeg')):
                 img_name = os.path.splitext(os.path.basename(img_path))[0]
                 descriptor = img_name.split('_')
                 assert len(descriptor) == 4, 'unexpected image name format'
